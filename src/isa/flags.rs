@@ -453,7 +453,7 @@ impl IntFlags {
         let val = val.to_u8();
         IntFlags {
             signed: val & 0x01 == 1,
-            wrap: val & 0x02 >> 1 == 1,
+            wrap: val & (0x02 >> 1) == 1,
         }
     }
 

@@ -233,7 +233,7 @@ impl Encode for String {
     type Error = EncodeError;
 
     fn encode(&self, mut writer: impl Write) -> Result<usize, Self::Error> {
-        let len = self.as_bytes().len();
+        let len = self.len();
         if len > u8::MAX as usize {
             return Err(EncodeError::StringTooLong(len));
         }
