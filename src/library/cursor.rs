@@ -204,7 +204,7 @@ where
     fn write(&mut self, value: u32, bit_count: u5) -> Result<(), CodeEofError> {
         let mut cnt = bit_count.to_u8();
         let value = ((value as u64) << (self.bit_pos.to_u8())).to_le_bytes();
-        let n_bytes = (cnt + self.bit_pos.to_u8() + 7) / 8;
+        let n_bytes = (cnt + self.bit_pos.to_u8()).div_ceil(8);
         for i in 0..n_bytes {
             if self.is_eof() {
                 return Err(CodeEofError);

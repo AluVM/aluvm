@@ -35,13 +35,13 @@ use crate::LIB_NAME_ALUVM;
 
 /// Strict type id for the library providing data types from this crate.
 pub const LIB_ID_ALUVM: &str =
-    "stl:YnA1fyHl-46C2hsC-tZPxn60-w1jLk5Y-rDTjRmy-xo!5xjY#congo-archive-folio";
+    "stl:myo90uZg-uGl~PpV-Wyevvqm-yuOJvS2-bKHJDWN-fgv9sjE#jargon-gorilla-poetic";
 
 fn _aluvm_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_ALUVM), tiny_bset! {
-        strict_types::stl::std_stl().to_dependency(),
-        strict_types::stl::strict_types_stl().to_dependency()
-    })
+    LibBuilder::with(libname!(LIB_NAME_ALUVM), [
+        strict_types::stl::std_stl().to_dependency_types(),
+        strict_types::stl::strict_types_stl().to_dependency_types(),
+    ])
     .transpile::<LibSite>()
     .transpile::<Lib>()
     .compile()
