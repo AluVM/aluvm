@@ -63,6 +63,7 @@ where
     libs: &'a LibsSeg,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<'a, C, D> Debug for Marshaller<'a, C, D>
 where
     C: AsRef<[u8]>,
@@ -112,6 +113,7 @@ where Self: 'a
 impl<'a> Marshaller<'a, SmallBlob, SmallBlob>
 where Self: 'a
 {
+    /// Convert data accumulated by the marshaller into code and data segments.
     #[cfg(any(test, feature = "tests"))]
     pub fn into_code_data(self) -> (SmallBlob, SmallBlob) { (self.bytecode, self.data) }
 }
@@ -444,6 +446,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(coverage_nightly, coverage(off))]
     use super::*;
 
     #[test]

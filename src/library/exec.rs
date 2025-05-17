@@ -78,7 +78,7 @@ impl Lib {
         let lib_ref = lib_mnemonic.split_at(5).0;
 
         if marshaller.seek(entrypoint).is_err() {
-            core.reset_ck();
+            let _ = core.fail_ck();
             #[cfg(feature = "log")]
             eprintln!("jump to non-existing offset; halting, {y}CK{z} is set to {r}false{z}");
             return Jump::Halt;
@@ -99,7 +99,7 @@ impl Lib {
                 {
                     let (byte, bit) = marshaller.offset();
                     eprintln!(
-                        "; unable to decode instruction at byte pos {byte:06X}#h, bit pos {bit}",
+                        "; unable to decode instruction at byte pos {byte:06X}.h, bit pos {bit}",
                     );
                 }
                 return Jump::Halt;
@@ -107,7 +107,7 @@ impl Lib {
             let next_pos = marshaller.offset();
             debug_assert_eq!(next_pos.1, u3::ZERO);
             #[cfg(feature = "log")]
-            eprintln!("; return to the caller @{:06X}#h", next_pos.0);
+            eprintln!("; return to the caller offset {:06X}.h", next_pos.0);
         }
 
         while !marshaller.is_eof() {
@@ -118,7 +118,7 @@ impl Lib {
                 {
                     let (byte, bit) = marshaller.offset();
                     eprintln!(
-                        "unable to decode instruction at byte pos {byte:06X}#h, bit pos {bit}",
+                        "unable to decode instruction at byte pos {byte:06X}.h, bit pos {bit}",
                     );
                 }
                 return Jump::Halt;
@@ -136,7 +136,7 @@ impl Lib {
                 for reg in instr.dst_regs() {
                     prev.insert(reg, core.get(reg));
                 }
-                eprint!("{m}{}@{pos:06X}#h:{z} {: <32}; ", lib_ref, instr.to_string());
+                eprint!("site {m}{}@{pos:06}:{z} {: <32}; ", lib_ref, instr.to_string());
                 let src_regs = instr.src_regs();
                 src_empty = src_regs.is_empty();
                 let mut iter = src_regs.into_iter().peekable();
@@ -243,7 +243,7 @@ impl Lib {
                 }
                 ExecStep::Jump(pos) => {
                     #[cfg(feature = "log")]
-                    eprintln!("{d}jumping{z} {m}@{pos:06X}{z}");
+                    eprintln!("{d}jumping to{z} {m}{pos:06}{z}");
                     if marshaller.seek(pos).is_err() {
                         let _ = core.fail_ck();
                         #[cfg(feature = "log")]

@@ -23,14 +23,18 @@
 // the License.
 
 #![deny(
-    non_upper_case_globals,
-    non_camel_case_types,
-    non_snake_case,
+    unsafe_code,
+    dead_code,
+    missing_docs,
+    unused_variables,
     unused_mut,
     unused_imports,
-    dead_code,
-    // missing_docs
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case
 )]
+#![allow(clippy::bool_assert_comparison)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Rust implementation of AluVM (arithmetic logic unit virtual machine) and assembler from Alu
@@ -39,22 +43,22 @@
 //! AluVM is a pure functional register-based highly deterministic & exception-less instruction set
 //! architecture (ISA) and virtual machine (VM) without random memory access, capable of performing
 //! arithmetic operations, including operations on elliptic curves. The AluVM ISA can be extended by
-//! the environment running the virtual machine (host environment), providing ability to load data
-//! to the VM registers and support application-specific instructions (like SIMD).
+//! the environment running the virtual machine (host environment), providing an ability to load
+//! data to the VM registers and support application-specific instructions (like SIMD).
 //!
 //! The main purpose for ALuVM is to be used in distributed systems whether robustness,
 //! platform-independent determinism are more important than the speed of computation. The main area
 //! of AluVM applications (using appropriate ISA extensions) is blockchain environments,
 //! consensus-critical computations, multiparty computing (including deterministic machine
-//! learning), client-side-validation, sandboxed Internet2 computing and genetic algorithms.
+//! learning), client-side-validation, sandboxed Internet2 computing, and genetic algorithms.
 //!
 //! For more details on AluVM, please check [the specification][AluVM]
 //!
 //!
 //! ## Design
 //!
-//! The robusness lies at the very core of AluVM. It is designed to avoid any
-//! undefined behaviour. Specifically,
+//! The robustness lies at the very core of AluVM. It is designed to avoid any
+//! undefined behavior. Specifically,
 //! * All registers may be in the undefined statel
 //! * Impossible/incorrect operations put destination register into a special *undefined state*;
 //! * Code always extended to 2^16 bytes with zeros, which corresponds to no-operation;
@@ -77,7 +81,7 @@
 //!
 //! ### Instruction opcodes
 //!
-//! You will find all opcode implementation details documented in [`isa::Instr`] API docs.
+//! One will find all opcode implementation details documented in [`isa::Instr`] API docs.
 //!
 //! - RISC: only 256 instructions
 //! - 3 families of core instructions:
@@ -102,13 +106,13 @@
 //!
 //! Most of the arithmetic operations has to be provided with flags specifying which of the encoding
 //! and exception handling should be used:
-//! * Integer encodings has two flags:
+//! * Integer encodings have two flags:
 //!   - one for signed/unsigned variant of the encoding
 //!   - one for checked or wrapped variant of exception handling
 //! * Float encoding has 4 variants of rounding, matching IEEE-754 options
 //!
 //! Thus, many arithmetic instructions have 8 variants, indicating the used encoding (unsigned,
-//! signed integer or float) and operation behavior in situation when resulting value does not fit
+//! signed integer or float) and operation behavior in a situation when resulting value does not fit
 //! into the register (overflow or wrap for integers and one of four rounding options for floats).
 //!
 //! Check [the specification][AluVM] for the details.
@@ -133,8 +137,6 @@
 //!
 //! [AluVM]: https://github.com/AluVM/aluvm-spec
 
-#![allow(clippy::bool_assert_comparison)]
-
 extern crate alloc;
 
 #[macro_use]
@@ -155,6 +157,7 @@ mod vm;
 #[cfg(feature = "stl")]
 pub mod stl;
 
+/// Module providing register information
 pub mod regs {
     pub use crate::core::{Status, CALL_STACK_SIZE_MAX};
 }
@@ -172,4 +175,5 @@ pub use vm::Vm;
 
 pub use self::core::{Core, CoreConfig, CoreExt, NoExt, NoRegs, Register, Site, SiteId, Supercore};
 
+/// Name of the strict types library for AluVM.
 pub const LIB_NAME_ALUVM: &str = "AluVM";

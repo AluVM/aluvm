@@ -77,12 +77,15 @@ impl From<Sha256> for LibId {
 }
 
 /// Location inside the instruction sequence which can be executed by the core.
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{lib_id}@{offset:04}")]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_ALUVM)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct LibSite {
+    /// The identifier of the library.
     pub lib_id: LibId,
+    /// The offset within the library.
     pub offset: u16,
 }
 
@@ -91,12 +94,16 @@ impl From<Site<LibId>> for LibSite {
 }
 
 impl LibSite {
+    /// Construct a new library site out of library identifier and code offset.
     #[inline]
     pub fn new(lib_id: LibId, offset: u16) -> Self { LibSite { lib_id, offset } }
 }
 
+/// Library segment inside AluVM library which stores references to the external library ids for the
+/// external calls made within the library.
 pub type LibsSeg = TinyOrdSet<LibId>;
 
+/// An AluVM library, which can be executed on a VM instance.
 #[derive(Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_ALUVM)]
@@ -104,9 +111,13 @@ pub type LibsSeg = TinyOrdSet<LibId>;
 #[commit_encode(id = LibId, strategy = strict)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Lib {
+    /// ISA extension segment.
     pub isae: TinyOrdSet<IsaId>,
+    /// Code segment.
     pub code: SmallBlob,
+    /// Data segment.
     pub data: SmallBlob,
+    /// Library segment keeping external library references.
     pub libs: LibsSeg,
 }
 
@@ -118,8 +129,11 @@ impl AsRef<Lib> for Lib {
 }
 
 impl Lib {
+    /// Compute a library identifier, which serves as a cryptographic commitment to the library
+    /// contents.
     pub fn lib_id(&self) -> LibId { self.commit_id() }
 
+    /// String containing all ISA extensions used by the library, enumerated with spaces.
     pub fn isae_string(&self) -> String {
         self.isae
             .iter()
@@ -152,6 +166,7 @@ impl Display for Lib {
 
 #[cfg(test)]
 mod test {
+    #![cfg_attr(coverage_nightly, coverage(off))]
     use strict_encoding::StrictDumb;
 
     use super::*;

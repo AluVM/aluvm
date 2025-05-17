@@ -70,14 +70,14 @@ where Isa: Instruction<LibId>
         context: &Isa::Context<'_>,
         lib_resolver: impl Fn(LibId) -> Option<L>,
     ) -> Status {
-        let mut call = Some(entry_point);
+        let mut site = entry_point;
         let mut skip = false;
-        while let Some(ref mut site) = call {
+        loop {
             if let Some(lib) = lib_resolver(site.lib_id) {
-                call = match lib
+                let jump = lib
                     .as_ref()
-                    .exec::<Isa>(site.offset, skip, &mut self.core, context)
-                {
+                    .exec::<Isa>(site.offset, skip, &mut self.core, context);
+                match jump {
                     Jump::Halt => {
                         #[cfg(feature = "log")]
                         {
@@ -92,21 +92,29 @@ where Isa: Instruction<LibId>
                                 core.co()
                             );
                         }
-                        None
+                        break;
                     }
-                    Jump::Instr(site) => {
+                    Jump::Instr(new_site) => {
                         skip = false;
-                        Some(site.into())
+                        site = new_site.into();
                     }
-                    Jump::Next(site) => {
+                    Jump::Next(new_site) => {
                         skip = true;
-                        Some(site.into())
+                        site = new_site.into();
                     }
-                };
-            } else if let Some(pos) = site.offset.checked_add(1) {
-                site.offset = pos;
+                }
             } else {
-                call = None;
+                let fail = self.core.fail_ck();
+                // We stop execution if the failure flag is set
+                if fail {
+                    break;
+                } else if let Some(pos) = site.offset.checked_add(1) {
+                    // Otherwise we just proceed
+                    site.offset = pos;
+                } else {
+                    // or we still stop if we reached the end of the code
+                    break;
+                }
             };
         }
         self.core.ck()

@@ -25,13 +25,15 @@
 use alloc::vec::Vec;
 use std::collections::BTreeMap;
 
-use crate::isa::Instruction;
+use crate::isa::{GotoTarget, Instruction};
 use crate::library::assembler::AssemblerError;
 use crate::{Lib, LibId, LibSite};
 
+/// Errors generated during the library compilation.
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum CompilerError<Isa: Instruction<LibId>> {
+    /// Error in assembling the bytecode (see [`AssemblerError`] for the details).
     #[from]
     #[display(inner)]
     Assemble(AssemblerError),
@@ -47,6 +49,7 @@ pub enum CompilerError<Isa: Instruction<LibId>> {
     InvalidLib(Isa, usize, u16, LibId),
 }
 
+/// The compiled AluVM library containing information about the routines.
 pub struct CompiledLib {
     id: LibId,
     lib: Lib,
@@ -54,8 +57,8 @@ pub struct CompiledLib {
 }
 
 impl CompiledLib {
-    /// Compiles library from the provided instructions by resolving local call pointers first, and
-    /// then assembling it into a bytecode by calling [`Self::assemble`].
+    /// Compiles a library from the provided instructions by resolving local call pointers first
+    /// and then assembling it into a bytecode by calling [`Self::assemble`].
     pub fn compile<Isa>(
         mut code: impl AsMut<[Isa]>,
         deps: &[&CompiledLib],
@@ -78,7 +81,7 @@ impl CompiledLib {
         }
         let mut cursor = 0u16;
         for (no, instr) in code.iter_mut().enumerate() {
-            if let Some(goto_pos) = instr.local_goto_pos() {
+            if let GotoTarget::Absolute(goto_pos) = instr.local_goto_pos() {
                 let Some(pos) = routines.get(*goto_pos as usize) else {
                     return Err(CompilerError::InvalidRef(instr.clone(), no, cursor, routines));
                 };
@@ -103,6 +106,7 @@ impl CompiledLib {
         Ok(Self { id, lib, routines })
     }
 
+    /// Count the number of routines in the library.
     pub fn routines_count(&self) -> usize { self.routines.len() }
 
     /// Returns code offset for the entry point of a given routine.
@@ -115,7 +119,9 @@ impl CompiledLib {
         LibSite::new(self.id, pos)
     }
 
+    /// Get a reference to the underlying [`Lib`].
     pub fn as_lib(&self) -> &Lib { &self.lib }
 
+    /// Convert into the underlying [`Lib`].
     pub fn into_lib(self) -> Lib { self.lib }
 }

@@ -55,7 +55,7 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Core<Id, Cx, CALL_ST
     /// Reset `CK` register.
     pub fn reset_ck(&mut self) { self.ck = Status::Ok }
 
-    /// Return size of the call stack.
+    /// Return the size of the call stack.
     pub fn cp(&self) -> u16 { self.cs.len() as u16 }
 
     /// Push a location to a call stack.
@@ -78,11 +78,12 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Core<Id, Cx, CALL_ST
     ///
     /// # Returns
     ///
-    /// Boolean indicating whether complexity limit is reached.
+    /// Boolean indicating whether the complexity limit is reached.
     pub fn acc_complexity(&mut self, complexity: u64) -> bool {
         self.ca = self.ca.saturating_add(complexity);
         self.cl().map(|lim| self.ca < lim).unwrap_or(true)
     }
 
+    /// Get register value.
     pub fn get(&self, reg: Cx::Reg) -> Option<<Cx::Reg as Register>::Value> { self.cx.get(reg) }
 }

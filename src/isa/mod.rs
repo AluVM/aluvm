@@ -34,4 +34,4 @@ mod masm;
 pub use arch::{Instr, IsaId, ReservedInstr, ISA_ID_MAX_LEN};
 pub use bytecode::{Bytecode, BytecodeRead, BytecodeWrite, CodeEofError};
 pub use ctrl::CtrlInstr;
-pub use instr::{ExecStep, Instruction};
+pub use instr::{ExecStep, GotoTarget, Instruction};

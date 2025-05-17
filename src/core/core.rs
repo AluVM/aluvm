@@ -34,24 +34,40 @@ use crate::{Register, LIB_NAME_ALUVM};
 /// Equals to 0xFFFF (i.e., maximum limited by `cy` and `cp` bit size).
 pub const CALL_STACK_SIZE_MAX: u16 = 0xFF;
 
+/// Extension to the AluVM core provided by an ISA.
 pub trait CoreExt: Clone + Debug {
+    /// A type of registers provided by the ISA.
     type Reg: Register;
+    /// A configuration used in initializing the core extension.
     type Config: Default;
 
+    /// Constructs the core extensions to be added to AluVM core.
     fn with(config: Self::Config) -> Self;
 
+    /// Read the value of a register.
     fn get(&self, reg: Self::Reg) -> Option<<Self::Reg as Register>::Value>;
+
+    /// Clear the register by setting it to `None`.
     fn clr(&mut self, reg: Self::Reg);
+
+    /// Set the register to the provided value.
     fn set(&mut self, reg: Self::Reg, val: <Self::Reg as Register>::Value) {
         self.put(reg, Some(val))
     }
+
+    /// Put either a value or None to the register.
     fn put(&mut self, reg: Self::Reg, val: Option<<Self::Reg as Register>::Value>);
 
+    /// Reset the core extension by setting all the registers to `None`.
     fn reset(&mut self);
 }
 
+/// A trait for the external part of AluVM core which can operate with core ISA extensions.
 pub trait Supercore<Subcore> {
+    /// An ISA extension subcore.
     fn subcore(&self) -> Subcore;
+
+    /// Merge the values generated in the subcore ISA extension with the main core.
     fn merge_subcore(&mut self, subcore: Subcore);
 }
 
@@ -181,6 +197,7 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Core<Id, Cx, CALL_ST
         }
     }
 
+    /// Reset the core extension by setting all the registers to `None`.
     pub fn reset(&mut self) {
         let mut new = Self::new();
         new.ch = self.ch;
@@ -190,6 +207,7 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Core<Id, Cx, CALL_ST
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Debug
     for Core<Id, Cx, CALL_STACK_SIZE>
 {

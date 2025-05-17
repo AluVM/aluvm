@@ -99,27 +99,28 @@ impl<Id: SiteId> Bytecode<Id> for ReservedInstr {
     }
 }
 
+#[allow(missing_docs)]
 impl<Id: SiteId> CtrlInstr<Id> {
     const START: u8 = 0;
     const END: u8 = Self::START + Self::STOP;
 
-    const NOP: u8 = 0;
-    const NOCO: u8 = 1;
-    const CHCO: u8 = 2;
-    const CHCK: u8 = 3;
-    const FAIL: u8 = 4;
-    const RSET: u8 = 5;
-    const JMP: u8 = 6;
-    const JINE: u8 = 7;
-    const JIFAIL: u8 = 8;
-    const SH: u8 = 9;
-    const SHNE: u8 = 10;
-    const SHFAIL: u8 = 11;
-    const EXEC: u8 = 12;
-    const FN: u8 = 13;
-    const CALL: u8 = 14;
-    const RET: u8 = 15;
-    const STOP: u8 = 16;
+    pub const NOP: u8 = 0;
+    pub const NOCO: u8 = 1;
+    pub const CHCO: u8 = 2;
+    pub const CHCK: u8 = 3;
+    pub const FAIL: u8 = 4;
+    pub const RSET: u8 = 5;
+    pub const JMP: u8 = 6;
+    pub const JINE: u8 = 7;
+    pub const JIFAIL: u8 = 8;
+    pub const SH: u8 = 9;
+    pub const SHNE: u8 = 10;
+    pub const SHFAIL: u8 = 11;
+    pub const EXEC: u8 = 12;
+    pub const FN: u8 = 13;
+    pub const CALL: u8 = 14;
+    pub const RET: u8 = 15;
+    pub const STOP: u8 = 16;
 }
 
 impl<Id: SiteId> Bytecode<Id> for CtrlInstr<Id> {
@@ -262,6 +263,7 @@ impl<Id: SiteId> Bytecode<Id> for CtrlInstr<Id> {
 
 #[cfg(test)]
 mod test {
+    #![cfg_attr(coverage_nightly, coverage(off))]
     use core::str::FromStr;
 
     use amplify::confinement::SmallBlob;
@@ -287,63 +289,158 @@ mod test {
     }
 
     #[test]
-    fn nop() { roundtrip(CtrlInstr::Nop, [CtrlInstr::<LibId>::NOP]); }
-    #[test]
-    fn chk() { roundtrip(CtrlInstr::ChkCk, [CtrlInstr::<LibId>::CHCK]); }
-    #[test]
-    fn not_co() { roundtrip(CtrlInstr::NotCo, [CtrlInstr::<LibId>::NOCO]); }
-    #[test]
-    fn fail_ck() { roundtrip(CtrlInstr::FailCk, [CtrlInstr::<LibId>::FAIL]); }
-    #[test]
-    fn reset_ck() { roundtrip(CtrlInstr::RsetCk, [CtrlInstr::<LibId>::RSET]); }
+    fn nop() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Nop);
+        roundtrip(instr, [CtrlInstr::<LibId>::NOP]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::NOP);
+        assert_eq!(instr.external_ref(), None);
+    }
 
     #[test]
-    fn jmp() { roundtrip(CtrlInstr::Jmp { pos: 0x75AE }, [CtrlInstr::<LibId>::JMP, 0xAE, 0x75]); }
+    fn chk() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::ChkCk);
+        roundtrip(instr, [CtrlInstr::<LibId>::CHCK]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::CHCK);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn not_co() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::NotCo);
+        roundtrip(instr, [CtrlInstr::<LibId>::NOCO]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::NOCO);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn fail_ck() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::FailCk);
+        roundtrip(instr, [CtrlInstr::<LibId>::FAIL]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::FAIL);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn reset_ck() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::RsetCk);
+        roundtrip(instr, [CtrlInstr::<LibId>::RSET]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::RSET);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn jmp() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Jmp { pos: 0x75AE });
+        roundtrip(instr, [CtrlInstr::<LibId>::JMP, 0xAE, 0x75]);
+        assert_eq!(instr.code_byte_len(), 3);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::JMP);
+        assert_eq!(instr.external_ref(), None);
+    }
+
     #[test]
     fn jine() {
-        roundtrip(CtrlInstr::JiOvfl { pos: 0x75AE }, [CtrlInstr::<LibId>::JINE, 0xAE, 0x75]);
-    }
-    #[test]
-    fn jifail() {
-        roundtrip(CtrlInstr::JiFail { pos: 0x75AE }, [CtrlInstr::<LibId>::JIFAIL, 0xAE, 0x75]);
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::JiOvfl { pos: 0x75AE });
+        roundtrip(instr, [CtrlInstr::<LibId>::JINE, 0xAE, 0x75]);
+        assert_eq!(instr.code_byte_len(), 3);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::JINE);
+        assert_eq!(instr.external_ref(), None);
     }
 
     #[test]
-    fn sh() { roundtrip(CtrlInstr::Sh { shift: -0x5 }, [CtrlInstr::<LibId>::SH, 255 - 5 + 1]); }
+    fn jifail() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::JiFail { pos: 0x75AE });
+        roundtrip(instr, [CtrlInstr::<LibId>::JIFAIL, 0xAE, 0x75]);
+        assert_eq!(instr.code_byte_len(), 3);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::JIFAIL);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn sh() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Sh { shift: -0x5 });
+        roundtrip(instr, [CtrlInstr::<LibId>::SH, 255 - 5 + 1]);
+        assert_eq!(instr.code_byte_len(), 2);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::SH);
+        assert_eq!(instr.external_ref(), None);
+    }
+
     #[test]
     fn shne() {
-        roundtrip(CtrlInstr::ShOvfl { shift: -0x5 }, [CtrlInstr::<LibId>::SHNE, 255 - 5 + 1]);
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::ShOvfl { shift: -0x5 });
+        roundtrip(instr, [CtrlInstr::<LibId>::SHNE, 255 - 5 + 1]);
+        assert_eq!(instr.code_byte_len(), 2);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::SHNE);
+        assert_eq!(instr.external_ref(), None);
     }
+
     #[test]
     fn shfail() {
-        roundtrip(CtrlInstr::ShFail { shift: -0x5 }, [CtrlInstr::<LibId>::SHFAIL, 255 - 5 + 1]);
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::ShFail { shift: -0x5 });
+        roundtrip(instr, [CtrlInstr::<LibId>::SHFAIL, 255 - 5 + 1]);
+        assert_eq!(instr.code_byte_len(), 2);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::SHFAIL);
+        assert_eq!(instr.external_ref(), None);
     }
 
     #[test]
     fn exec() {
         let lib_id = LibId::from_str(LIB_ID).unwrap();
-        roundtrip(CtrlInstr::Exec { site: Site::new(lib_id, 0x69AB) }, [
-            CtrlInstr::<LibId>::EXEC,
-            0x00,
-            0xAB,
-            0x69,
-        ]);
-    }
-    #[test]
-    fn func() { roundtrip(CtrlInstr::Fn { pos: 0x75AE }, [CtrlInstr::<LibId>::FN, 0xAE, 0x75]); }
-    #[test]
-    fn call() {
-        let lib_id = LibId::from_str(LIB_ID).unwrap();
-        roundtrip(CtrlInstr::Call { site: Site::new(lib_id, 0x69AB) }, [
-            CtrlInstr::<LibId>::CALL,
-            0x00,
-            0xAB,
-            0x69,
-        ]);
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Exec { site: Site::new(lib_id, 0x69AB) });
+        roundtrip(instr, [CtrlInstr::<LibId>::EXEC, 0x00, 0xAB, 0x69]);
+        assert_eq!(instr.code_byte_len(), 4);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::EXEC);
+        assert_eq!(instr.external_ref(), Some(lib_id));
     }
 
     #[test]
-    fn ret() { roundtrip(CtrlInstr::Ret, [CtrlInstr::<LibId>::RET]); }
+    fn func() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Fn { pos: 0x75AE });
+        roundtrip(instr, [CtrlInstr::<LibId>::FN, 0xAE, 0x75]);
+        assert_eq!(instr.code_byte_len(), 3);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::FN);
+        assert_eq!(instr.external_ref(), None);
+    }
+
     #[test]
-    fn stop() { roundtrip(CtrlInstr::Stop, [CtrlInstr::<LibId>::STOP]); }
+    fn call() {
+        let lib_id = LibId::from_str(LIB_ID).unwrap();
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Call { site: Site::new(lib_id, 0x69AB) });
+        roundtrip(instr, [CtrlInstr::<LibId>::CALL, 0x00, 0xAB, 0x69]);
+        assert_eq!(instr.code_byte_len(), 4);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::CALL);
+        assert_eq!(instr.external_ref(), Some(lib_id));
+    }
+
+    #[test]
+    fn ret() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Ret);
+        roundtrip(instr, [CtrlInstr::<LibId>::RET]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::RET);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn stop() {
+        let instr = Instr::<LibId>::Ctrl(CtrlInstr::Stop);
+        roundtrip(instr, [CtrlInstr::<LibId>::STOP]);
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), CtrlInstr::<LibId>::STOP);
+        assert_eq!(instr.external_ref(), None);
+    }
+
+    #[test]
+    fn reserved() {
+        let instr = Instr::<LibId>::Reserved(default!());
+        roundtrip(instr, [0xFF]);
+
+        assert_eq!(instr.code_byte_len(), 1);
+        assert_eq!(instr.opcode_byte(), 0xFF);
+        assert_eq!(instr.external_ref(), None);
+    }
 }

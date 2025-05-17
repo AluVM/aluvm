@@ -33,6 +33,7 @@ use crate::{CoreConfig, Lib, LibSite, LIB_NAME_ALUVM};
 pub const LIB_ID_ALUVM: &str =
     "stl:t1kptI_t-R8Ei0Wa-e0m53SK-toGi5AC-si8GK5F-MbQp588#reward-accent-swim";
 
+#[allow(clippy::result_large_err)]
 fn _aluvm_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::with(libname!(LIB_NAME_ALUVM), [
         strict_types::stl::std_stl().to_dependency_types(),
@@ -49,6 +50,7 @@ pub fn aluvm_stl() -> TypeLib { _aluvm_stl().expect("invalid strict type AluVM l
 
 #[cfg(test)]
 mod test {
+    #![cfg_attr(coverage_nightly, coverage(off))]
     use super::*;
 
     #[test]

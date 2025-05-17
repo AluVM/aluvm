@@ -31,8 +31,10 @@ use super::CtrlInstr;
 use crate::core::SiteId;
 use crate::LIB_NAME_ALUVM;
 
+/// Maximal length of the ISA identifier.
 pub const ISA_ID_MAX_LEN: usize = 16;
 
+/// Macro for constructing ISA identifiers
 #[macro_export]
 macro_rules! isa {
     ($id:literal) => {
@@ -43,6 +45,10 @@ macro_rules! isa {
     };
 }
 
+/// ISA identifier.
+///
+/// ISA identifier is a capitalized ASCII alphanumeric string, consisting of minimum one character
+/// and with a maximal length up to [`ISA_ID_MAX_LEN`].
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, Display, FromStr)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -59,9 +65,13 @@ impl From<&'static str> for IsaId {
 }
 
 /// Reserved instruction, which equal to [`crate::ExecStep::Fail`].
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Default)]
-#[display("halt    {0:#02X}#h")]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
+#[display("halt    {0:#02X}.h")]
 pub struct ReservedInstr(/** Reserved instruction op code value */ pub(super) u8);
+
+impl Default for ReservedInstr {
+    fn default() -> Self { Self(0xFF) }
+}
 
 /// Complete AluVM ISA.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display, From)]

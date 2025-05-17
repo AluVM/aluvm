@@ -29,11 +29,16 @@ use core::str::FromStr;
 
 use crate::core::CoreExt;
 
+/// A trait for a set of registers provided by an ISA extension.
 pub trait Register: Copy + Ord + Debug + Display {
+    /// The value type contained in the registers.
     type Value: Copy + Debug + Display;
+
+    /// The size of the value in the register, in bytes.
     fn bytes(self) -> u16;
 }
 
+/// Default [`Register`] implementation for ISA extensions providing no new registers.
 #[derive(Debug)]
 pub enum NoRegs {}
 #[allow(clippy::non_canonical_clone_impl)]
@@ -61,17 +66,21 @@ impl Register for NoRegs {
     fn bytes(self) -> u16 { unreachable!() }
 }
 
+/// Status for flag registers.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
 #[repr(i8)]
 pub enum Status {
+    /// Flag is not set, indicating absence of failures.
     #[display("ok")]
     Ok = 0,
 
+    /// Flag is set, indicating a failure.
     #[display("fail")]
     Fail = -1,
 }
 
 impl Status {
+    /// Checks if the flag is not set, and no failure has happened.
     pub fn is_ok(self) -> bool { self == Status::Ok }
 }
 
@@ -86,26 +95,37 @@ impl Not for Status {
     }
 }
 
+/// Trait for program identifiers.
+///
+/// This type is required in addition to [`crate::LibId`] in order to achieve proper abstraction,
+/// layering, and separation of concerns: the core must know nothing about library structure.
 pub trait SiteId: Copy + Ord + Debug + Display + FromStr {}
 
 /// Location inside the instruction sequence which can be executed by the core.
+///
+/// This type is required in addition to [`crate::LibSite`] in order to achieve proper abstraction,
+/// layering, and separation of concerns: the core must know nothing about library structure.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub struct Site<Id: SiteId> {
+    /// Identifier of the program.
     pub prog_id: Id,
+    /// Offset in the code segment within the program.
     pub offset: u16,
 }
 
 impl<Id: SiteId> Site<Id> {
+    /// Construct a new code site out of program identifier and code offset.
     #[inline]
     pub fn new(prog_id: Id, offset: u16) -> Self { Self { prog_id, offset } }
 }
 
 impl<Id: SiteId> Display for Site<Id> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{:04X}#h", self.prog_id, self.offset)
+        write!(f, "{}@{:04}", self.prog_id, self.offset)
     }
 }
 
+/// Helper data structure for base core which has no ISA extensions.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct NoExt;
 

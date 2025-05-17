@@ -26,7 +26,7 @@ use alloc::collections::BTreeSet;
 
 use super::CtrlInstr;
 use crate::core::{Core, NoExt, NoRegs, Site, SiteId, Status};
-use crate::isa::{ExecStep, Instr, Instruction, ReservedInstr};
+use crate::isa::{ExecStep, GotoTarget, Instr, Instruction, ReservedInstr};
 
 impl<Id: SiteId> Instruction<Id> for Instr<Id> {
     const ISA_EXT: &'static [&'static str] = &[];
@@ -41,7 +41,7 @@ impl<Id: SiteId> Instruction<Id> for Instr<Id> {
         }
     }
 
-    fn local_goto_pos(&mut self) -> Option<&mut u16> {
+    fn local_goto_pos(&mut self) -> GotoTarget {
         match self {
             Instr::Ctrl(instr) => instr.local_goto_pos(),
             Instr::Reserved(instr) => Instruction::<Id>::local_goto_pos(instr),
@@ -83,6 +83,13 @@ impl<Id: SiteId> Instruction<Id> for Instr<Id> {
         }
     }
 
+    fn complexity(&self) -> u64 {
+        match self {
+            Instr::Ctrl(instr) => instr.complexity(),
+            Instr::Reserved(instr) => Instruction::<Id>::complexity(instr),
+        }
+    }
+
     fn exec(
         &self,
         site: Site<Id>,
@@ -104,7 +111,7 @@ impl<Id: SiteId> Instruction<Id> for ReservedInstr {
 
     fn is_goto_target(&self) -> bool { false }
 
-    fn local_goto_pos(&mut self) -> Option<&mut u16> { None }
+    fn local_goto_pos(&mut self) -> GotoTarget { GotoTarget::None }
 
     fn remote_goto_pos(&mut self) -> Option<&mut Site<Id>> { None }
 
@@ -149,23 +156,23 @@ impl<Id: SiteId> Instruction<Id> for CtrlInstr<Id> {
         }
     }
 
-    fn local_goto_pos(&mut self) -> Option<&mut u16> {
+    fn local_goto_pos(&mut self) -> GotoTarget {
         match self {
             CtrlInstr::Nop
             | CtrlInstr::ChkCo
             | CtrlInstr::ChkCk
             | CtrlInstr::NotCo
             | CtrlInstr::FailCk
-            | CtrlInstr::RsetCk => None,
+            | CtrlInstr::RsetCk => GotoTarget::None,
             CtrlInstr::Jmp { pos }
             | CtrlInstr::JiOvfl { pos }
             | CtrlInstr::JiFail { pos }
-            | CtrlInstr::Fn { pos } => Some(pos),
-            CtrlInstr::Sh { shift: _ }
-            | CtrlInstr::ShOvfl { shift: _ }
-            | CtrlInstr::ShFail { shift: _ } => None,
-            CtrlInstr::Exec { site: _ } | CtrlInstr::Call { site: _ } => None,
-            CtrlInstr::Ret | CtrlInstr::Stop => None,
+            | CtrlInstr::Fn { pos } => GotoTarget::Absolute(pos),
+            CtrlInstr::Sh { shift } | CtrlInstr::ShOvfl { shift } | CtrlInstr::ShFail { shift } => {
+                GotoTarget::Relative(shift)
+            }
+            CtrlInstr::Exec { site: _ } | CtrlInstr::Call { site: _ } => GotoTarget::None,
+            CtrlInstr::Ret | CtrlInstr::Stop => GotoTarget::None,
         }
     }
 
@@ -225,6 +232,28 @@ impl<Id: SiteId> Instruction<Id> for CtrlInstr<Id> {
             CtrlInstr::Call { .. } => 32,
             CtrlInstr::Ret | CtrlInstr::Stop => 0,
         }
+    }
+
+    fn complexity(&self) -> u64 {
+        let complexity = match self {
+            CtrlInstr::Nop => 0,
+            CtrlInstr::ChkCo
+            | CtrlInstr::ChkCk
+            | CtrlInstr::NotCo
+            | CtrlInstr::FailCk
+            | CtrlInstr::RsetCk => 2,
+            CtrlInstr::Jmp { .. } | CtrlInstr::Sh { .. } => 10,
+            CtrlInstr::JiOvfl { .. }
+            | CtrlInstr::JiFail { .. }
+            | CtrlInstr::ShOvfl { .. }
+            | CtrlInstr::ShFail { .. } => 20,
+            CtrlInstr::Exec { .. } => return self.base_complexity() + 20_000,
+            CtrlInstr::Fn { .. } => 30,
+            CtrlInstr::Call { .. } => return self.base_complexity() + 20_000,
+            CtrlInstr::Ret => 20,
+            CtrlInstr::Stop => 0,
+        };
+        complexity * 1000
     }
 
     fn exec(
@@ -308,5 +337,295 @@ impl<Id: SiteId> Instruction<Id> for CtrlInstr<Id> {
             CtrlInstr::Stop => return ExecStep::Stop,
         }
         ExecStep::Next
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![cfg_attr(coverage_nightly, coverage(off))]
+
+    use core::str::FromStr;
+
+    use super::*;
+    use crate::core::Site;
+    use crate::LibId;
+
+    const LIB_ID: &str = "5iMb1eHJ-bN5BOe6-9RvBjYL-jF1ELjj-VV7c8Bm-WvFen1Q";
+
+    #[test]
+    fn nop() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Nop);
+        assert_eq!(instr.is_goto_target(), true);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.base_complexity(), 0);
+        assert_eq!(instr.complexity(), instr.base_complexity());
+    }
+
+    #[test]
+    fn chk() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::ChkCk);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 2000);
+    }
+
+    #[test]
+    fn not_co() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::NotCo);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 2000);
+    }
+
+    #[test]
+    fn fail_ck() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::FailCk);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 2000);
+    }
+
+    #[test]
+    fn reset_ck() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::RsetCk);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 2000);
+    }
+
+    #[test]
+    fn jmp() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Jmp { pos: 0x75AE });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Absolute(&mut 0x75AE));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 10_000);
+    }
+
+    #[test]
+    fn jine() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::JiOvfl { pos: 0x75AE });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Absolute(&mut 0x75AE));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 20_000);
+    }
+
+    #[test]
+    fn jifail() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::JiFail { pos: 0x75AE });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Absolute(&mut 0x75AE));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 20_000);
+    }
+
+    #[test]
+    fn sh() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Sh { shift: -0x5 });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Relative(&mut -0x5));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 1);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 10_000);
+    }
+
+    #[test]
+    fn shne() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::ShOvfl { shift: -0x5 });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Relative(&mut -0x5));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 1);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 20_000);
+    }
+
+    #[test]
+    fn shfail() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::ShFail { shift: -0x5 });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Relative(&mut -0x5));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 1);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 20_000);
+    }
+
+    #[test]
+    fn exec() {
+        let lib_id = LibId::from_str(LIB_ID).unwrap();
+        let mut site = Site::new(lib_id, 0x69AB);
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Exec { site });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), Some(&mut site));
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 32);
+        assert_eq!(instr.complexity(), 548000);
+    }
+
+    #[test]
+    fn func() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Fn { pos: 0x75AE });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::Absolute(&mut 0x75AE));
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 30_000);
+    }
+
+    #[test]
+    fn call() {
+        let lib_id = LibId::from_str(LIB_ID).unwrap();
+        let mut site = Site::new(lib_id, 0x69AB);
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Call { site });
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), Some(&mut site));
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 2);
+        assert_eq!(instr.ext_data_bytes(), 32);
+        assert_eq!(instr.complexity(), 548000);
+    }
+
+    #[test]
+    fn ret() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Ret);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 20_000);
+    }
+
+    #[test]
+    fn stop() {
+        let mut instr = Instr::<LibId>::Ctrl(CtrlInstr::Stop);
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), 0);
+    }
+
+    #[test]
+    fn reserved() {
+        let mut instr = Instr::<LibId>::Reserved(default!());
+        assert_eq!(instr.is_goto_target(), false);
+        assert_eq!(instr.local_goto_pos(), GotoTarget::None);
+        assert_eq!(instr.remote_goto_pos(), None);
+        assert_eq!(instr.regs(), none!());
+        assert_eq!(instr.src_regs(), none!());
+        assert_eq!(instr.dst_regs(), none!());
+        assert_eq!(instr.src_reg_bytes(), 0);
+        assert_eq!(instr.dst_reg_bytes(), 0);
+        assert_eq!(instr.op_data_bytes(), 0);
+        assert_eq!(instr.ext_data_bytes(), 0);
+        assert_eq!(instr.complexity(), u64::MAX);
     }
 }

@@ -35,13 +35,13 @@ pub enum AssemblerError {
     #[from]
     Bytecode(MarshallError),
 
-    /// Error assembling library segment.
+    /// Error assembling a library segment.
     #[from]
     LibSegOverflow(confinement::Error),
 }
 
 impl Lib {
-    /// Assembles library from the provided instructions by encoding them into bytecode.
+    /// Assembles a library from the provided instructions by encoding them into bytecode.
     pub fn assemble<Isa>(code: &[Isa]) -> Result<Lib, AssemblerError>
     where Isa: Instruction<LibId> {
         let call_sites = code.iter().filter_map(|instr| instr.external_ref());
@@ -61,7 +61,7 @@ impl Lib {
         })
     }
 
-    /// Disassembles library into a set of instructions.
+    /// Disassembles the library into a set of instructions.
     pub fn disassemble<Isa>(&self) -> Result<Vec<Isa>, CodeEofError>
     where Isa: Instruction<LibId> {
         let mut code = Vec::new();
@@ -72,7 +72,7 @@ impl Lib {
         Ok(code)
     }
 
-    /// Disassembles library into a set of instructions and offsets and prints it to the writer.
+    /// Disassembles the library into a set of instructions and offsets and prints it to the writer.
     pub fn print_disassemble<Isa>(
         &self,
         mut writer: impl std::io::Write,
@@ -83,7 +83,7 @@ impl Lib {
         let mut reader = Marshaller::with(&self.code, &self.data, &self.libs);
         while !reader.is_eof() {
             let pos = reader.offset().0 as usize;
-            write!(writer, "@x{pos:06X}: ")?;
+            write!(writer, "offset {pos:06}: ")?;
             match Isa::decode_instr(&mut reader) {
                 Ok(instr) => writeln!(writer, "{instr}")?,
                 Err(_) => writeln!(writer, "; <incomplete instruction>")?,

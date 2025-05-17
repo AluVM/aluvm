@@ -36,17 +36,17 @@ use crate::core::SiteId;
 /// are bound by u16), (3) it provides too many fails in situations when we can't fail because of
 /// `u16`-bounding and exclusive in-memory encoding handling.
 pub trait Bytecode<Id: SiteId> {
-    /// Returns range of instruction bytecodes covered by a set of operations.
+    /// Returns the range of instruction bytecodes covered by a set of operations.
     fn op_range() -> RangeInclusive<u8>;
 
     /// Returns byte representing instruction code (without its arguments).
     fn opcode_byte(&self) -> u8;
 
-    /// Returns number of bytes used by the instruction and its arguments when serialized into the
-    /// code segment.
+    /// Returns the number of bytes used by the instruction and its arguments when serialized into
+    /// the code segment.
     fn code_byte_len(&self) -> u16;
 
-    /// If the instruction call or references any external program, returns a reference to it.
+    /// If the instruction calls or references any external program, returns a reference to it.
     fn external_ref(&self) -> Option<Id>;
 
     /// Write an instruction as bytecode.
@@ -81,17 +81,17 @@ pub trait Bytecode<Id: SiteId> {
         R: BytecodeRead<Id>;
 }
 
-/// Error indicating that an end of code segment boundary is reached during read or write operation.
+/// Error indicating that an end-of-code segment boundary is reached during read or write operation.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
-#[display("attempt to read or write outside of code segment (i.e. at position > 0xFFFF)")]
+#[display("attempt to read or write outside of a code segment (i.e., at position > 0xFFFF)")]
 pub struct CodeEofError;
 
 /// Reader from a bytecode for instruction deserialization.
 pub trait BytecodeRead<Id: SiteId> {
-    /// Return current byte offset of the cursor. Does not account for bits.
+    /// Return the current byte offset of the cursor. Does not account for bits.
     /// If the position is exactly at EOF, returns `None`.
     fn pos(&self) -> u16;
-    /// Set current cursor byte offset to the provided value, if it is less than the underlying
+    /// Set the current cursor byte offset to the provided value if it is less than the underlying
     /// buffer length.
     ///
     /// # Returns
@@ -125,7 +125,7 @@ pub trait BytecodeRead<Id: SiteId> {
     /// Read word.
     fn read_word(&mut self) -> Result<u16, CodeEofError>;
 
-    /// Read fixed number of bytes and convert it into a result type.
+    /// Read the fixed number of bytes and convert it into a result type.
     ///
     /// # Returns
     ///
@@ -158,6 +158,7 @@ pub trait BytecodeRead<Id: SiteId> {
 
 /// Writer converting instructions into a bytecode.
 pub trait BytecodeWrite<Id: SiteId> {
+    /// Error type returned during writing procedures.
     type Error: Debug;
 
     /// Write a single bit from a bool value.

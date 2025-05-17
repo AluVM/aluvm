@@ -27,6 +27,7 @@
 /// # Example
 ///
 /// ```
+/// ##![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
 /// use aluvm::isa::Instr;
 /// use aluvm::regs::Status;
 /// use aluvm::{aluasm, Lib, LibId, LibSite, Vm};
@@ -34,16 +35,16 @@
 /// const START: u16 = 0;
 ///
 /// let code = aluasm! {
-///   .routine  :START      ;
-///     not     CO          ;
-///     fail    CK          ;
-///     mov     CO, CK      ;
-///     chk     CO          ;
-///     jif     CO, +2      ;
-///     jif     CK, -2      ;
-///     jmp     +2          ;
-///     call    :START      ;
-///     stop                ;
+///    routine  START:
+///     not     CO;
+///     fail    CK;
+///     mov     CO, CK;
+///     chk     CO;
+///     jif     CO, +2;
+///     jif     CK, -2;
+///     jmp     +2;
+///     call    START;
+///     stop;
 /// };
 ///
 /// let lib = Lib::assemble::<Instr<LibId>>(&code).unwrap();
@@ -73,9 +74,16 @@ macro_rules! aluasm {
 macro_rules! aluasm_inner {
     // end of program
     { $code:ident => } => { };
+    // skipped annotations
+    { $code:ident => offset $_:literal : $($tt:tt)* } => {
+        $crate::aluasm_inner! { $code => $( $tt )* }
+    };
+    { $code:ident => site $lib:ident @ $_:literal : $($tt:tt)* } => {
+        $crate::aluasm_inner! { $code => $( $tt )* }
+    };
     // macro instruction
-    { $code:ident => . $masm:ident : $label:ident ; $($tt:tt)* } => {
-        $code.push(instr!{ . $masm : $label });
+    { $code:ident => $masm:ident $label:ident : $($tt:tt)* } => {
+        $code.push(instr!{ $masm $label : });
         $crate::aluasm_inner! { $code => $( $tt )* }
     };
     // no operands
@@ -116,17 +124,22 @@ macro_rules! aluasm_inner {
         $code.push(instr!{ $op $arg, $val });
         $crate::aluasm_inner! { $code => $( $tt )* }
     };
-    // special types
-    { $code:ident => $op:ident :$val:ident ; $($tt:tt)* } => {
-        $code.push(instr!{ $op :$val });
+    // suffixes
+    { $code:ident => $op:ident $val:literal . $ty:ident ; $($tt:tt)* } => {
+        $code.push(instr!{ $op $val.$ty });
         $crate::aluasm_inner! { $code => $( $tt )* }
     };
-    { $code:ident => $op:ident $reg:ident, :$val:ident ; $($tt:tt)* } => {
-        $code.push(instr!{ $op $reg, :$val });
+    { $code:ident => $op:ident $reg:ident, $val:literal . $ty:ident ; $($tt:tt)* } => {
+        $code.push(instr!{ $op $reg, $val.$ty });
         $crate::aluasm_inner! { $code => $( $tt )* }
     };
-    { $code:ident => $op:ident $reg:ident, $val:literal : $ty:ident ; $($tt:tt)* } => {
-        $code.push(instr!{ $op $reg, $val:$ty });
+    // external constants and variables
+    { $code:ident => $op:ident & $val:ident ; $($tt:tt)* } => {
+        $code.push(instr!{ $op & $val });
+        $crate::aluasm_inner! { $code => $( $tt )* }
+    };
+    { $code:ident => $op:ident $reg:ident, & $val:ident ; $($tt:tt)* } => {
+        $code.push(instr!{ $op $reg, & $val });
         $crate::aluasm_inner! { $code => $( $tt )* }
     };
 }
@@ -134,16 +147,16 @@ macro_rules! aluasm_inner {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! instr {
-    (.routine: $_:ident) => {
+    (routine $_:ident :) => {
         $crate::isa::CtrlInstr::Nop.into()
     };
-    (.proc: $_:ident) => {
+    (proc $_:ident :) => {
         $crate::isa::CtrlInstr::Nop.into()
     };
-    (.label: $_:ident) => {
+    (label $_:ident :) => {
         $crate::isa::CtrlInstr::Nop.into()
     };
-    (.loop: $_:ident) => {
+    (loop $_:ident :) => {
         $crate::isa::CtrlInstr::Nop.into()
     };
 
@@ -176,12 +189,18 @@ macro_rules! instr {
     (jmp $pos:literal) => {
         $crate::isa::CtrlInstr::Jmp { pos: $pos }.into()
     };
-    (jmp: $pos:ident) => {
+    (jmp $pos:ident) => {
         $crate::isa::CtrlInstr::Jmp { pos: $pos }.into()
     };
 
     (jif CO, + $shift:literal) => {
         $crate::isa::CtrlInstr::ShOvfl { shift: $shift }.into()
+    };
+    (jif CO, - $shift:literal) => {
+        $crate::isa::CtrlInstr::ShOvfl { shift: -$shift }.into()
+    };
+    (jif CK, + $shift:literal) => {
+        $crate::isa::CtrlInstr::ShFail { shift: $shift }.into()
     };
     (jif CK, - $shift:literal) => {
         $crate::isa::CtrlInstr::ShFail { shift: -$shift }.into()
@@ -192,10 +211,10 @@ macro_rules! instr {
     (jif CK, $pos:literal) => {
         $crate::isa::CtrlInstr::JiFail { pos: $pos }.into()
     };
-    (jif CO, : $pos:ident) => {
+    (jif CO, $pos:ident) => {
         $crate::isa::CtrlInstr::JiOvfl { pos: $pos }.into()
     };
-    (jif CK, : $pos:ident) => {
+    (jif CK, $pos:ident) => {
         $crate::isa::CtrlInstr::JiFail { pos: $pos }.into()
     };
     (jmp + $shift:literal) => {
@@ -209,19 +228,24 @@ macro_rules! instr {
     (jmp $lib:ident, $pos:literal) => {
         $crate::isa::CtrlInstr::Exec { site: $crate::Site::new($lib, $pos).into() }.into()
     };
-    (jmp $lib:ident, : $pos:ident) => {
+    (jmp $lib:ident, $pos:ident) => {
         $crate::isa::CtrlInstr::Exec { site: $crate::Site::new($lib, $pos).into() }.into()
     };
     (call $lib:ident, $pos:literal) => {
         $crate::isa::CtrlInstr::Call { site: $crate::Site::new($lib, $pos).into() }.into()
     };
-    (call $lib:ident, : $pos:ident) => {
+    (call $lib:ident, $pos:ident) => {
         $crate::isa::CtrlInstr::Call { site: $crate::Site::new($lib, $pos).into() }.into()
     };
     (call $pos:literal) => {
         $crate::isa::CtrlInstr::Fn { pos: $pos }.into()
     };
-    (call: $pos:ident) => {
+    (call $pos:ident) => {
         $crate::isa::CtrlInstr::Fn { pos: $pos }.into()
+    };
+
+    // Halt
+    (halt) => {
+        $crate::isa::ReservedInstr::default().into()
     };
 }
