@@ -31,7 +31,7 @@ use crate::{Register, LIB_NAME_ALUVM};
 
 /// Maximal size of the call stack.
 ///
-/// Equals to 0xFFFF (i.e., maximum limited by `cy` and `cp` bit size).
+/// Equals to 0xFF.
 pub const CALL_STACK_SIZE_MAX: u16 = 0xFF;
 
 /// Extension to the AluVM core provided by an ISA.
@@ -106,10 +106,6 @@ pub struct Core<
 
     /// Test register, which acts as a boolean test result (also a carry flag).
     pub(super) co: Status,
-
-    /// Counts number of jumps (possible cycles). The number of jumps is limited by 2^16 per
-    /// script.
-    pub(super) cy: u16,
 
     /// Complexity accumulator / counter.
     ///
@@ -189,7 +185,6 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Core<Id, Cx, CALL_ST
             ck: Status::Ok,
             cf: 0,
             co: Status::Ok,
-            cy: 0,
             ca: 0,
             cl: config.complexity_lim,
             cs: ConfinedVec::with_capacity(CALL_STACK_SIZE),
@@ -223,7 +218,6 @@ impl<Id: SiteId, Cx: CoreExt, const CALL_STACK_SIZE: usize> Debug
         write!(f, "{reg}CK{reset} {val}{}{reset}, ", self.ck)?;
         write!(f, "{reg}CF{reset} {val}{}{reset}, ", self.cf)?;
         write!(f, "{reg}CO{reset} {val}{}{reset}, ", self.co)?;
-        write!(f, "{reg}CY{reset} {val}{}{reset}, ", self.cy)?;
         write!(f, "{reg}CA{reset} {val}{}{reset}, ", self.ca)?;
         let cl = self
             .cl
@@ -250,7 +244,6 @@ impl<Id: SiteId, Cx: CoreExt + Supercore<Cx2>, Cx2: CoreExt, const CALL_STACK_SI
             ck: self.ck,
             cf: self.cf,
             co: self.co,
-            cy: self.cy,
             ca: self.ca,
             cl: self.cl,
             cs: self.cs.clone(),
@@ -263,7 +256,6 @@ impl<Id: SiteId, Cx: CoreExt + Supercore<Cx2>, Cx2: CoreExt, const CALL_STACK_SI
         self.ck = subcore.ck;
         self.co = subcore.co;
         self.cf = subcore.cf;
-        self.cy = subcore.cy;
         self.ca = subcore.ca;
         assert_eq!(self.cl, subcore.cl);
         self.cs = subcore.cs;
